@@ -29,11 +29,12 @@ Thumbs.db
 
 # Output
 筛选结果/
-程序封装/
 
 # PyInstaller
 *.spec
-*.exe
 build_exe.py
 launcher.py
 runtime_hook.py
+# Only allow the launcher EXE
+*.exe
+!程序封装/PhotoScreener.exe
