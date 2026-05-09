@@ -32,9 +32,23 @@ python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-The setup script will guide you through mirror selection and PyTorch installation.
+### One-Click Launch (EXE) / 一键启动
 
-### Usage
+A pre-built launcher EXE is included in `程序封装/`:
+
+```bash
+程序封装\PhotoScreener.exe
+```
+
+On first launch it will:
+1. Auto-create a Python virtual environment
+2. Install all dependencies (Tsinghua mirror for users in China)
+3. Prompt for model selection and download
+4. Open the browser at `http://127.0.0.1:7860`
+
+Subsequent launches skip straight to the app — no setup required.
+
+首次运行会自动创建虚拟环境、安装依赖（清华镜像）、下载模型，之后秒开。
 
 ```bash
 python main.py
