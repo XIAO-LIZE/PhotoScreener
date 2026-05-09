@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environment
+venv/
+.venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Model cache (large files, users download separately)
+models/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Gradio
+.gradio/
+
+# Output
+筛选结果/
+程序封装/
+
+# PyInstaller
+*.spec
+*.exe
+build_exe.py
+launcher.py
+runtime_hook.py
