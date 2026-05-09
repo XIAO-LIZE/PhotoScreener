@@ -35,6 +35,5 @@ Thumbs.db
 build_exe.py
 launcher.py
 runtime_hook.py
-# Only allow the launcher EXE
 *.exe
-!程序封装/PhotoScreener.exe
+!PhotoScreener.exe
