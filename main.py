@@ -108,8 +108,10 @@ def run_scan(
     sharpness_weight: float,
     top_n: int,
     lang: str,
-    progress=gr.Progress(),
+    progress=gr.Progress(track_tqdm=False),
 ):
+    progress(0.01, desc="Scanning folder / 扫描文件夹...")
+
     if not folder or not os.path.isdir(folder):
         msg = t("no_valid_folder", lang)
         gr.Warning(msg)
@@ -212,81 +214,133 @@ def update_ui_text(lang: str):
 def build_ui():
     default_lang = "zh"
 
-    with gr.Blocks(title="Photo Screener / 照片筛选器") as demo:
+    css = """
+    footer { display: none !important; }
+    #gallery { min-height: 400px; }
+    * { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif !important; }
+    .card-box {
+        background: var(--background-fill-secondary);
+        border: 1px solid var(--border-color-primary);
+        border-radius: 12px;
+        padding: 16px;
+        margin-bottom: 12px;
+    }
+    #scan-btn {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+        border: none !important;
+        font-size: 16px !important;
+        font-weight: 600 !important;
+        padding: 14px 32px !important;
+        transition: transform 0.15s;
+    }
+    #scan-btn:hover {
+        transform: scale(1.02);
+    }
+    .progress-container { margin: 12px 0; }
+    """
 
-        # Language state
+    with gr.Blocks(
+        title="Photo Screener / 照片筛选器",
+        theme=gr.themes.Soft(),
+        css=css,
+    ) as demo:
         lang_state = gr.State(default_lang)
 
-        # Language selector
-        lang_dropdown = gr.Dropdown(
-            choices=[("中文", "zh"), ("English", "en")],
-            value=default_lang,
-            label="🌐 Language / 语言",
-            interactive=True,
-        )
-
-        # Dynamic header
-        header_md = gr.Markdown(
-            "# 🖼️ " + t("title", default_lang) + "\n"
-            + t("subtitle", default_lang) + "\n"
-            "- " + t("subtitle_p1", default_lang) + "\n"
-            "- " + t("subtitle_p2", default_lang) + "\n"
-            "- " + t("subtitle_p3", default_lang)
-        )
-
+        # ── Header ──
         with gr.Row():
-            # Left panel
-            with gr.Column(scale=1):
-                folder_input = gr.Textbox(
-                    label="📁 图片文件夹 / Image Folder",
-                    placeholder="粘贴路径 / Paste path here",
-                    info="右键文件夹→复制地址 / Right-click folder→Copy address",
+            with gr.Column(scale=8):
+                header_md = gr.Markdown(
+                    "# 🖼️ " + t("title", default_lang) + "\n"
+                    + t("subtitle", default_lang) + "\n"
+                    "- " + t("subtitle_p1", default_lang) + "\n"
+                    "- " + t("subtitle_p2", default_lang) + "\n"
+                    "- " + t("subtitle_p3", default_lang)
                 )
-                gr.Markdown("> 💡 图片保留在原位置不上传 / Images stay local, not uploaded")
-
-                prompt_input = gr.Textbox(
-                    label="🔍 内容描述 / Description (optional)",
-                    placeholder="海边日落、城市夜景 / sunset, portrait ...",
-                    lines=2,
+            with gr.Column(scale=1, min_width=140):
+                lang_dropdown = gr.Dropdown(
+                    choices=[("中文", "zh"), ("English", "en")],
+                    value=default_lang,
+                    label="🌐 Language / 语言",
+                    interactive=True,
                 )
 
-                gr.Markdown("### ⚙️ 评分权重 / Scoring Weights")
-                with gr.Row():
-                    w_content = gr.Slider(0, 1, value=0.4, step=0.1, label="内容匹配 / Content Match")
-                    w_aesthetic = gr.Slider(0, 1, value=0.4, step=0.1, label="美学评分 / Aesthetic")
-                    w_sharpness = gr.Slider(0, 1, value=0.2, step=0.1, label="清晰度 / Sharpness")
+        # ── Main: Left controls / Right results ──
+        with gr.Row():
+            # ── LEFT ──
+            with gr.Column(scale=4, min_width=340):
+                # Folder
+                with gr.Group(elem_classes="card-box"):
+                    gr.Markdown("### 📁 图片文件夹 / Image Folder")
+                    folder_input = gr.Textbox(
+                        label="文件夹路径 / Folder Path",
+                        placeholder="粘贴路径 / Paste path here",
+                        info="右键文件夹→复制地址 / Right-click folder→Copy address",
+                        container=True,
+                    )
+                    gr.Markdown("> 💡 图片保留在原位置，不会上传 / Images stay local")
 
-                top_n = gr.Slider(1, 200, value=20, step=1, label="🏆 " + t("top_n_label", default_lang))
+                # Prompt
+                with gr.Group(elem_classes="card-box"):
+                    gr.Markdown("### 🔍 内容描述 / Description")
+                    prompt_input = gr.Textbox(
+                        label="描述你想找的画面 (可选)",
+                        placeholder="海边日落、城市夜景 / sunset beach, portrait, night city...",
+                        lines=2,
+                        container=True,
+                    )
 
-                scan_btn = gr.Button("🚀 开始扫描 / Start Scan", variant="primary", size="lg")
-                summary_output = gr.Markdown("等待扫描 / Waiting for scan ...")
+                # Weights
+                with gr.Group(elem_classes="card-box"):
+                    gr.Markdown("### ⚙️ 评分权重 / Scoring Weights")
+                    with gr.Row():
+                        w_content = gr.Slider(0, 1, value=0.4, step=0.05, label="内容匹配 / Match")
+                        w_aesthetic = gr.Slider(0, 1, value=0.4, step=0.05, label="美学评分 / Aesthetic")
+                        w_sharpness = gr.Slider(0, 1, value=0.2, step=0.05, label="清晰度 / Sharpness")
 
-                gr.Markdown("### 📤 导出 / Export")
-                export_dir = gr.Textbox(
-                    label="导出目录 / Export Folder（留空→筛选结果/）",
-                    placeholder="C:\\Photos\\Selected",
+                    top_n = gr.Slider(1, 200, value=20, step=1, label="🏆 " + t("top_n_label", default_lang))
+
+                # Scan button
+                scan_btn = gr.Button(
+                    "🔍 开始扫描 / Start Scan",
+                    variant="primary",
+                    size="lg",
+                    elem_id="scan-btn",
                 )
-                export_btn = gr.Button("📦 导出筛选结果 / Export", variant="secondary")
-                export_status = gr.Markdown("")
 
-            # Right panel
-            with gr.Column(scale=2):
+                # Summary
+                with gr.Group(elem_classes="card-box"):
+                    gr.Markdown("### 📊 扫描结果 / Scan Summary")
+                    summary_output = gr.Markdown("等待扫描 / Waiting for scan ...")
+
+                # Export
+                with gr.Group(elem_classes="card-box"):
+                    gr.Markdown("### 📤 导出 / Export")
+                    export_dir = gr.Textbox(
+                        label="导出目录 / Export Folder（留空→筛选结果/）",
+                        placeholder="C:\\Photos\\Selected",
+                        container=True,
+                    )
+                    export_btn = gr.Button("📦 导出筛选结果 / Export", variant="secondary")
+                    export_status = gr.Markdown("")
+
+            # ── RIGHT ──
+            with gr.Column(scale=5):
                 gallery = gr.Gallery(
                     label="🏆 筛选结果 / Results",
-                    columns=3, height=500,
+                    columns=3, height=480,
                     object_fit="contain",
-                    show_label=True, elem_id="gallery",
+                    show_label=True,
+                    elem_id="gallery",
                 )
 
                 table = gr.Dataframe(
                     headers=["排名/Rank", "文件名/Name", "总分/Total", "匹配/Match", "美学/Aesthetic", "清晰度/Sharp", "路径/Path"],
                     label="📊 详细评分 / Scores",
-                    interactive=False, wrap=True,
+                    interactive=False,
+                    wrap=True,
                 )
 
-        # --- Events ---
-
-        # Language change → update header
+        # ── Events ──
         lang_dropdown.change(
             fn=update_ui_text,
             inputs=[lang_dropdown],
@@ -297,14 +351,12 @@ def build_ui():
             outputs=[lang_state],
         )
 
-        # Scan
         scan_btn.click(
             fn=run_scan,
             inputs=[folder_input, prompt_input, w_content, w_aesthetic, w_sharpness, top_n, lang_state],
             outputs=[gallery, table, summary_output],
         )
 
-        # Export
         export_btn.click(
             fn=export_selected,
             inputs=[table, folder_input, export_dir, lang_state],
@@ -333,10 +385,4 @@ if __name__ == "__main__":
         server_port=7860,
         inbrowser=True,
         share=False,
-        theme=gr.themes.Soft(),
-        css="""
-        footer { display: none !important; }
-        #gallery { min-height: 400px; }
-        * { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif !important; }
-        """,
     )
