@@ -108,6 +108,7 @@ def run_scan(
     sharpness_weight: float,
     top_n: int,
     lang: str,
+    progress=gr.Progress(),
 ):
     if not folder or not os.path.isdir(folder):
         msg = t("no_valid_folder", lang)
@@ -127,7 +128,7 @@ def run_scan(
         "content": content_weight,
         "aesthetic": aesthetic_weight,
         "sharpness": sharpness_weight,
-    })
+    }, progress=progress)
 
     if not results:
         msg = t("scan_fail", lang)

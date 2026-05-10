@@ -2,7 +2,7 @@
 import os
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Callable
 from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
 
@@ -10,7 +10,6 @@ import numpy as np
 import torch
 from PIL import Image
 import cv2
-from tqdm import tqdm
 
 # Frozen (PyInstaller) or development mode
 if getattr(sys, "frozen", False):
@@ -121,16 +120,22 @@ class PhotoScorer:
         except Exception:
             return None
 
-    def load_images(self, paths: list[str]) -> tuple[list[str], list[Image.Image]]:
-        """多线程批量加载图片，返回 (有效路径, 图片列表)"""
-        print(f"[IO] 加载 {len(paths)} 张图片 ...")
+    def load_images(
+        self,
+        paths: list[str],
+        progress: Optional[Callable] = None,
+    ) -> tuple[list[str], list[Image.Image]]:
+        """Load images in parallel with optional progress callback."""
+        total = len(paths)
+        print(f"[IO] Loading {total} images / 加载 {total} 张图片 ...")
+
+        images = []
         with ThreadPoolExecutor(max_workers=config.NUM_WORKERS) as pool:
-            images = list(tqdm(
-                pool.map(self._load_single_image, paths),
-                total=len(paths),
-                desc="读取图片",
-                unit="张",
-            ))
+            futures = {pool.submit(self._load_single_image, p): i for i, p in enumerate(paths)}
+            for i, fut in enumerate(futures):
+                images.append(fut.result())
+                if progress:
+                    progress((i + 1) / total, desc=f"Reading images / 读取图片 {i+1}/{total}")
 
         valid_paths, valid_images = [], []
         for p, img in zip(paths, images):
@@ -273,24 +278,25 @@ class PhotoScorer:
         paths: list[str],
         prompt: str = "",
         weights: Optional[dict] = None,
+        progress: Optional[Callable] = None,
     ) -> list[dict]:
-        """完整评分流程"""
+        """Full scoring pipeline / 完整评分流程"""
         import time
         t_start = time.time()
         
         if weights is None:
             weights = config.DEFAULT_WEIGHTS
 
-        # 1. 加载图片
+        # 1. Load images / 加载图片
         t_load = time.time()
-        valid_paths, images = self.load_images(paths)
+        valid_paths, images = self.load_images(paths, progress=progress)
         t_load = time.time() - t_load
         if not images:
-            print("[Warn] 没有有效图片")
+            print("[Warn] No valid images / 没有有效图片")
             return []
-        print(f"[Timer] IO: {t_load:.1f}s ({len(images)}张)")
+        print(f"[Timer] IO: {t_load:.1f}s ({len(images)} images)")
 
-        # 2. 合并所有 prompt，一次模型调用完成所有评分
+        # 2. Model scoring / 模型评分
         t_score = time.time()
         all_prompts = []
         content_idx = None
@@ -300,7 +306,9 @@ class PhotoScorer:
         aesthetic_prompts = config.AESTHETIC_PROMPTS
         total_prompts = len(all_prompts) + len(aesthetic_prompts)
 
-        print(f"[Timer] 模型评分...({total_prompts} prompts)")
+        if progress:
+            progress(0.35, desc="Model scoring / 模型评分...")
+        print(f"[Timer] Model scoring... ({total_prompts} prompts) / 模型评分...")
         
         # 一次前向传播：图片 × (内容prompt + 美学prompts)
         all_scores = self._score_multiple_prompts(
@@ -316,12 +324,16 @@ class PhotoScorer:
         # 美学分 = 剩余prompt的平均
         aesthetic_scores = all_scores[:, len(all_prompts):].mean(axis=1)
 
-        # 3. 清晰度（纯CPU，并行不阻塞）
+        # Sharpness analysis / 清晰度分析
+        if progress:
+            progress(0.7, desc="Sharpness analysis / 清晰度分析...")
         sharpness_scores = self.score_sharpness(images)
         t_score = time.time() - t_score
-        print(f"[Timer] 评分: {t_score:.1f}s (模型+清晰度)")
+        print(f"[Timer] Scoring: {t_score:.1f}s (model + sharpness) / 评分耗时")
 
-        # 4. 综合
+        # Compute final scores / 计算最终得分
+        if progress:
+            progress(0.9, desc="Computing final scores / 计算最终得分...")
         total = (
             weights["content"] * content_scores
             + weights["aesthetic"] * aesthetic_scores
