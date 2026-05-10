@@ -108,10 +108,8 @@ def run_scan(
     sharpness_weight: float,
     top_n: int,
     lang: str,
-    progress=gr.Progress(track_tqdm=False),
+    progress=gr.Progress(track_tqdm=True),
 ):
-    progress(0.01, desc="Scanning folder / 扫描文件夹...")
-
     if not folder or not os.path.isdir(folder):
         msg = t("no_valid_folder", lang)
         gr.Warning(msg)
@@ -130,7 +128,7 @@ def run_scan(
         "content": content_weight,
         "aesthetic": aesthetic_weight,
         "sharpness": sharpness_weight,
-    }, progress=progress)
+    })
 
     if not results:
         msg = t("scan_fail", lang)
