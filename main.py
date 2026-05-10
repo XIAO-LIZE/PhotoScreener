@@ -170,12 +170,16 @@ def run_scan(
 
 
 def export_selected(table_data, folder: str, export_dir: str, lang: str):
-    if not table_data:
+    if table_data is None or (hasattr(table_data, 'empty') and table_data.empty) or len(table_data) == 0:
         msg = t("export_nothing", lang)
         gr.Warning(msg)
         return msg
 
-    if not export_dir:
+    # Gradio may pass pandas DataFrame — convert to list
+    if hasattr(table_data, 'values'):
+        table_data = table_data.values.tolist()
+
+    if not export_dir or not export_dir.strip():
         if lang == "zh":
             export_dir = os.path.join(folder, "筛选结果")
         else:
@@ -183,13 +187,18 @@ def export_selected(table_data, folder: str, export_dir: str, lang: str):
 
     os.makedirs(export_dir, exist_ok=True)
     count = 0
+    skipped = 0
     for row in table_data:
-        src = row[6]
-        if os.path.exists(src):
+        src = str(row[6]) if row[6] is not None else ""
+        if src and os.path.exists(src):
             dst = os.path.join(export_dir, os.path.basename(src))
             shutil.copy2(src, dst)
             count += 1
+        else:
+            skipped += 1
 
+    if count == 0:
+        return t("export_nothing", lang) + f"\n(src not found: {skipped} files / 源文件未找到: {skipped} 个)"
     return t("export_done", lang, n=count, path=export_dir)
 
 
@@ -336,6 +345,7 @@ def build_ui():
                     label="📊 详细评分 / Scores",
                     interactive=False,
                     wrap=True,
+                    type="array",
                 )
 
         # ── Events ──
