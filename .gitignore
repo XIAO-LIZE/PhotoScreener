@@ -33,7 +33,6 @@ Thumbs.db
 # PyInstaller
 *.spec
 build_exe.py
-launcher.py
 runtime_hook.py
 *.exe
 !PhotoScreener.exe
